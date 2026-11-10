@@ -6,6 +6,8 @@ import dev.emperor.module.Category;
 import dev.emperor.module.Module;
 import dev.emperor.module.ModuleManager;
 import dev.emperor.util.Chat;
+import dev.emperor.util.Session;
+import dev.emperor.waypoint.Waypoints;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.InputUtil;
 
@@ -35,6 +37,9 @@ public final class Commands {
                 case "vclip" -> vclip(a);
                 case "coords", "pos" -> coords();
                 case "panic" -> panic();
+                case "waypoint", "wp" -> waypoint(a);
+                case "config", "profile", "cfg" -> config(a);
+                case "stats" -> stats();
                 case "save" -> {
                     ModuleManager.save();
                     Chat.info("Config saved.");
@@ -49,15 +54,92 @@ public final class Commands {
 
     private static void help() {
         Chat.info("§6§l♛ " + EmperorClient.NAME + " Client §7v" + EmperorClient.VERSION);
-        line("toggle <module>", "turn a module on/off");
-        line("bind <module> <key|none>", "set a module keybind");
-        line("friend add|del <name>", "manage friends");
-        line("friend list", "show your friends");
-        line("modules", "list all modules");
-        line("vclip <blocks>", "teleport up/down");
-        line("coords", "copy your coordinates");
-        line("panic", "disable every module");
-        line("save", "save the config now");
+        for (String[] u : USAGE) line(u[0], u[1]);
+    }
+
+    /** {usage, description}; also used for Spotlight suggestions. */
+    public static final String[][] USAGE = {
+            {"toggle <module>", "turn a module on/off"},
+            {"bind <module> <key|none>", "set a module keybind"},
+            {"friend add|del|list <name>", "manage friends"},
+            {"wp add <name> [x y z]", "create a waypoint (default: here)"},
+            {"wp del <name>", "delete a waypoint"},
+            {"wp list", "list waypoints"},
+            {"config save|load|del <name>", "save or load a profile"},
+            {"config list", "list saved profiles"},
+            {"stats", "show session statistics"},
+            {"modules", "list all modules"},
+            {"vclip <blocks>", "teleport up/down"},
+            {"coords", "copy your coordinates"},
+            {"panic", "disable every module"},
+            {"save", "save the config now"},
+    };
+
+    private static String dim() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        return mc.world == null ? "minecraft:overworld" : mc.world.getRegistryKey().getValue().toString();
+    }
+
+    private static void waypoint(String[] a) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        String sub = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "list";
+        switch (sub) {
+            case "add", "set" -> {
+                if (a.length < 3) throw new IllegalArgumentException("usage: " + PREFIX + "wp add <name> [x y z]");
+                int x, y, z;
+                if (a.length >= 6) {
+                    x = Integer.parseInt(a[3]);
+                    y = Integer.parseInt(a[4]);
+                    z = Integer.parseInt(a[5]);
+                } else {
+                    x = mc.player.getBlockX();
+                    y = mc.player.getBlockY();
+                    z = mc.player.getBlockZ();
+                }
+                Waypoints.set(a[2], x, y, z, dim());
+                Chat.info("Waypoint §e" + a[2] + "§f set at §e" + x + " " + y + " " + z);
+                ModuleManager.save();
+            }
+            case "del", "remove", "rm" -> {
+                if (a.length < 3) throw new IllegalArgumentException("missing name");
+                Chat.info(Waypoints.remove(a[2]) ? "Deleted waypoint §c" + a[2] : "No waypoint named " + a[2]);
+                ModuleManager.save();
+            }
+            case "clear" -> {
+                Waypoints.clear();
+                Chat.info("All waypoints deleted.");
+            }
+            default -> {
+                if (Waypoints.all().isEmpty()) {
+                    Chat.info("No waypoints yet. §7" + PREFIX + "wp add <name>");
+                    return;
+                }
+                for (Waypoints.Waypoint w : Waypoints.all()) {
+                    String d = w.dim().substring(w.dim().indexOf(':') + 1);
+                    Chat.info("§e" + w.name() + " §f" + w.x() + " " + w.y() + " " + w.z() + " §8(" + d + ")");
+                }
+            }
+        }
+    }
+
+    private static void config(String[] a) {
+        String sub = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "list";
+        if (!sub.equals("list") && a.length < 3) throw new IllegalArgumentException("usage: " + PREFIX + "config " + sub + " <name>");
+        switch (sub) {
+            case "save" -> Chat.info(ModuleManager.saveProfile(a[2]) ? "Saved profile §e" + a[2] : "§cCould not save profile");
+            case "load" -> Chat.info(ModuleManager.loadProfile(a[2]) ? "Loaded profile §e" + a[2] : "§cNo profile named " + a[2]);
+            case "del", "delete", "rm" -> Chat.info(ModuleManager.deleteProfile(a[2]) ? "Deleted profile §c" + a[2] : "No profile named " + a[2]);
+            default -> {
+                List<String> p = ModuleManager.profiles();
+                Chat.info(p.isEmpty() ? "No profiles yet. §7" + PREFIX + "config save <name>" : "Profiles: §e" + String.join("§7, §e", p));
+            }
+        }
+    }
+
+    private static void stats() {
+        Chat.info("§6Session §8- §fplaytime §e" + Session.playtime() + "§f, kills §e" + Session.kills + "§f, deaths §e"
+                + Session.deaths + "§f, K/D §e" + Session.kd() + "§f, blocks §e" + Session.blocks
+                + "§f, distance §e" + Math.round(Session.distance) + "m");
     }
 
     private static void line(String usage, String desc) {

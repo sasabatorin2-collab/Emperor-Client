@@ -1,19 +1,21 @@
 package dev.emperor.modules;
 
+import dev.emperor.hud.Hud;
+import dev.emperor.hud.HudElement;
 import dev.emperor.module.Category;
 import dev.emperor.module.Module;
 import dev.emperor.setting.BoolSetting;
+import dev.emperor.setting.NumberSetting;
 
 public class HudModule extends Module {
-    public final BoolSetting watermark = add(new BoolSetting("Watermark", true));
-    public final BoolSetting arrayList = add(new BoolSetting("Module list", true));
-    public final BoolSetting info = add(new BoolSetting("Info panel", true));
-    public final BoolSetting armor = add(new BoolSetting("Armor", true));
-    public final BoolSetting targetHud = add(new BoolSetting("Target HUD", true));
-    public final BoolSetting notifications = add(new BoolSetting("Notifications", true));
+    public final BoolSetting notifications;
+    public final NumberSetting radarRange;
 
     public HudModule() {
-        super("HUD", "Overlay with watermark, module list, info, armor and target.", Category.CLIENT);
+        super("HUD", "Draggable widgets: open the HUD Editor from the menu dock.", Category.CLIENT);
+        for (HudElement e : Hud.ELEMENTS) add(e.visible);
+        notifications = add(new BoolSetting("Notifications", true));
+        radarRange = add(new NumberSetting("Radar range", 48, 16, 128, 8));
     }
 
     @Override

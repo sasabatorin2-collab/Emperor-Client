@@ -77,6 +77,8 @@ public class ClickGuiScreen extends Screen {
     private Module binding;
     private String search = "";
     private int scrollY = 0;
+    private int scrollTarget = 0;
+    private float scrollAnim = 0f;
     private final long openedAt = System.currentTimeMillis();
     private boolean closing;
     private long closingAt;
@@ -259,6 +261,8 @@ public class ClickGuiScreen extends Screen {
         dt = Math.min(0.1f, (nowNs - lastFrame) / 1e9f);
         lastFrame = nowNs;
         long now = System.currentTimeMillis();
+        scrollAnim = Fx.approach(scrollAnim, scrollTarget, dt, 16f);
+        scrollY = Math.round(scrollAnim);
 
         float openT = Fx.clamp01((now - openedAt) / 450f);
         if (closing) {
@@ -281,6 +285,10 @@ public class ClickGuiScreen extends Screen {
 
         int maxBottom = 0;
         float globalFade = fade;
+        // Panels scroll inside the area above the search bar and dock.
+        int viewBottom = height - 70;
+        clipBottom = viewBottom;
+        ctx.enableScissor(0, 0, width, viewBottom);
         Category[] cats = Category.values();
         for (int i = 0; i < cats.length; i++) {
             Category cat = cats[i];
@@ -291,16 +299,103 @@ public class ClickGuiScreen extends Screen {
             int bottom = drawPanel(ctx, tr, cat, p, p.x, p.y + scrollY + slide, mouseX, mouseY);
             maxBottom = Math.max(maxBottom, bottom - scrollY);
         }
+        ctx.disableScissor();
+        clipBottom = Integer.MAX_VALUE;
         fade = globalFade;
+        if (maxBottom + scrollY > viewBottom) {
+            ctx.fillGradient(0, viewBottom - 14, width, viewBottom, 0x00000000, c(0x70000000));
+        }
 
-        drawTooltip(ctx, tr, mouseX, mouseY, now);
         drawSearch(ctx, tr, now);
+        drawDock(ctx, tr, mouseX, mouseY);
+        drawRipples(ctx, now);
+        drawTooltip(ctx, tr, mouseX, mouseY, now);
 
         String help = "LMB toggle  ·  RMB settings  ·  MMB bind  ·  Scroll  ·  Type to search  ·  RShift close";
-        ctx.drawCenteredTextWithShadow(tr, help, width / 2, height - 12, c(0xFF5E5E70));
+        ctx.drawCenteredTextWithShadow(tr, help, width / 2, height - 11, c(0xFF5E5E70));
 
-        int minScroll = Math.min(0, height - 60 - maxBottom);
-        if (scrollY < minScroll) scrollY = minScroll;
+        int minScroll = Math.min(0, viewBottom - 8 - maxBottom);
+        if (scrollTarget < minScroll) scrollTarget = minScroll;
+    }
+
+    // ------------------------------------------------------------------ dock & ripples
+
+    private record DockButton(String icon, String label, Click action) {
+    }
+
+    private void drawDock(DrawContext ctx, TextRenderer tr, int mx, int my) {
+        ClickGuiModule g = cfg();
+        List<DockButton> buttons = List.of(
+                new DockButton("✎", "HUD Editor", (x, y, b) -> client.setScreen(new HudEditorScreen(this))),
+                new DockButton("⌕", "Spotlight", (x, y, b) -> client.setScreen(new SpotlightScreen())),
+                new DockButton("◐", "Theme: " + (g == null ? "-" : g.theme.get()), (x, y, b) -> {
+                    if (g == null) return;
+                    if (b == 1) g.theme.prev();
+                    else g.theme.next();
+                }),
+                new DockButton("⟲", "Reset layout", (x, y, b) -> {
+                    laidOut = false;
+                    init();
+                }));
+        int bh = 18, gap = 4, pad = 4;
+        int total = pad * 2 - gap;
+        for (DockButton d : buttons) total += tr.getWidth(d.icon + "  " + d.label) + 16 + gap;
+        int x = (width - total) / 2, y = height - 40;
+        Rounded.shadow(ctx, x, y, x + total, y + bh + pad * 2, 9, 6, c(0x60000000));
+        Rounded.fill(ctx, x, y, x + total, y + bh + pad * 2, 9, c(0xE00E0E14));
+        Rounded.outline(ctx, x, y, x + total, y + bh + pad * 2, 9, c(Theme.alpha(Theme.main(), 0x50)));
+        int bx = x + pad;
+        for (int i = 0; i < buttons.size(); i++) {
+            DockButton d = buttons.get(i);
+            int bw = tr.getWidth(d.icon + "  " + d.label) + 16;
+            int by = y + pad;
+            boolean hover = mx >= bx && mx < bx + bw && my >= by && my < by + bh;
+            float hv = anim(List.of("dock", i), hover ? 1f : 0f, 18f);
+            if (hv > 0.01f) Rounded.gradientH(ctx, bx, by, bx + bw, by + bh, 6,
+                    c(Theme.alpha(Theme.primary(), (int) (0x70 * hv))), c(Theme.alpha(Theme.secondary(), (int) (0x70 * hv))));
+            else Rounded.fill(ctx, bx, by, bx + bw, by + bh, 6, c(0x30FFFFFF));
+            if (!Fx.invisible(fade)) {
+                ctx.drawTextWithShadow(tr, d.icon, bx + 8, by + 5, c(Theme.lerp(Theme.primary(), 0xFFFFFFFF, hv)));
+                ctx.drawTextWithShadow(tr, d.label, bx + 8 + tr.getWidth(d.icon + "  "), by + 5, c(0xFFE6E6EE));
+            }
+            DockButton fd = d;
+            hit(bx, by, bw, bh, (cx, cy, b) -> {
+                fd.action.on(cx, cy, b);
+                sound(1.3f);
+            }, null, null);
+            bx += bw + gap;
+        }
+    }
+
+    private static final class Ripple {
+        final int x, y;
+        final long start = System.currentTimeMillis();
+
+        Ripple(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    private final List<Ripple> ripples = new ArrayList<>();
+
+    private void drawRipples(DrawContext ctx, long now) {
+        ripples.removeIf(r -> now - r.start > 450);
+        for (Ripple r : ripples) {
+            float t = (now - r.start) / 450f;
+            int rad = (int) (3 + Fx.easeOutCubic(t) * 16);
+            int col = Theme.alpha(Theme.primary(), (int) (200 * (1 - t)));
+            Rounded.outline(ctx, r.x - rad, r.y - rad, r.x + rad + 1, r.y + rad + 1, rad, col);
+            if (t < 0.4f) Rounded.circle(ctx, r.x, r.y, (int) (rad * 0.5f), Theme.alpha(Theme.primary(), (int) (90 * (1 - t / 0.4f))));
+        }
+    }
+
+    /** Opens the menu with a module searched and its settings expanded. */
+    public static ClickGuiScreen focus(Module m) {
+        ClickGuiScreen s = new ClickGuiScreen();
+        s.search = m.name.toLowerCase(Locale.ROOT);
+        EXPANDED.put(m, true);
+        return s;
     }
 
     private int drawPanel(DrawContext ctx, TextRenderer tr, Category cat, Panel p, int x, int y, int mx, int my) {
@@ -531,7 +626,7 @@ public class ClickGuiScreen extends Screen {
     private void drawSearch(DrawContext ctx, TextRenderer tr, long now) {
         int sw = 200, sh = 18;
         int sx = (width - sw) / 2;
-        int sy = height - 40;
+        int sy = height - 64;
         float focus = anim("search", search.isEmpty() ? 0f : 1f, 12f);
         Rounded.shadow(ctx, sx, sy, sx + sw, sy + sh, 8, 5, c(Theme.alpha(Theme.main(), (int) (0x18 + 0x30 * focus))));
         Rounded.fill(ctx, sx, sy, sx + sw, sy + sh, 8, c(0xE00E0E14));
@@ -567,6 +662,7 @@ public class ClickGuiScreen extends Screen {
             Hit h = hits.get(i);
             if (h.contains(mouseX, mouseY)) {
                 h.click().on(mouseX, mouseY, button);
+                ripples.add(new Ripple((int) mouseX, (int) mouseY));
                 if (h.drag() != null && button == 0) activeSlider = h;
                 return true;
             }
@@ -598,7 +694,7 @@ public class ClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        scrollY = Math.min(0, scrollY + (int) (verticalAmount * 20));
+        scrollTarget = Math.min(0, scrollTarget + (int) (verticalAmount * 28));
         return true;
     }
 

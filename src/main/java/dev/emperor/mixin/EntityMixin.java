@@ -1,5 +1,6 @@
 package dev.emperor.mixin;
 
+import dev.emperor.modules.FreeLook;
 import dev.emperor.modules.Freecam;
 import dev.emperor.modules.Zoom;
 import net.minecraft.client.MinecraftClient;
@@ -15,6 +16,7 @@ public abstract class EntityMixin {
     @Inject(method = "changeLookDirection", at = @At("HEAD"), cancellable = true)
     private void emperor$freecamLook(double dx, double dy, CallbackInfo ci) {
         if (Freecam.handleLook((Entity) (Object) this, dx, dy)) ci.cancel();
+        else if (FreeLook.handleLook((Entity) (Object) this, dx, dy)) ci.cancel();
     }
 
     // Lower mouse sensitivity while zoomed so aiming stays precise.

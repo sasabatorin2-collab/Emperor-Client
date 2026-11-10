@@ -55,10 +55,24 @@ public final class RenderUtil {
     }
 
     public static void line(double x1, double y1, double z1, double x2, double y2, double z2, int rgb) {
-        if (LINES.size() > MAX_VERTS) return;
+        line(x1, y1, z1, x2, y2, z2, rgb, 0.95f);
+    }
+
+    public static void line(double x1, double y1, double z1, double x2, double y2, double z2, int rgb, float alpha) {
+        if (LINES.size() > MAX_VERTS || alpha <= 0.01f) return;
         float r = ((rgb >> 16) & 0xFF) / 255f, g = ((rgb >> 8) & 0xFF) / 255f, b = (rgb & 0xFF) / 255f;
-        v(LINES, x1, y1, z1, r, g, b, 0.95f);
-        v(LINES, x2, y2, z2, r, g, b, 0.95f);
+        v(LINES, x1, y1, z1, r, g, b, alpha);
+        v(LINES, x2, y2, z2, r, g, b, alpha);
+    }
+
+    /** Horizontal ring (y fixed) with per-segment theme colours. */
+    public static void ring(double cx, double y, double cz, double radius, int segments, float alpha,
+                            java.util.function.IntUnaryOperator color) {
+        for (int i = 0; i < segments; i++) {
+            double a1 = Math.PI * 2 * i / segments, a2 = Math.PI * 2 * (i + 1) / segments;
+            line(cx + Math.cos(a1) * radius, y, cz + Math.sin(a1) * radius,
+                    cx + Math.cos(a2) * radius, y, cz + Math.sin(a2) * radius, color.applyAsInt(i), alpha);
+        }
     }
 
     public static void box(Box bx, int rgb, boolean fill, boolean outline) {

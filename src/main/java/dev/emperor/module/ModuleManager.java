@@ -7,10 +7,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.emperor.friend.Friends;
+import dev.emperor.hud.Hud;
 import dev.emperor.modules.*;
 import dev.emperor.setting.Setting;
 import dev.emperor.util.Projection;
 import dev.emperor.util.RenderUtil;
+import dev.emperor.waypoint.Waypoints;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
@@ -28,6 +30,8 @@ import java.util.Locale;
 
 public final class ModuleManager {
     private static final String FRIENDS_KEY = "$friends";
+    private static final String WAYPOINTS_KEY = "$waypoints";
+    private static final String HUD_KEY = "$hud";
     private static final Logger LOG = LoggerFactory.getLogger("Emperor");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final List<Module> MODULES = new ArrayList<>();
@@ -72,6 +76,14 @@ public final class ModuleManager {
         register(new Freecam());
         register(new HoleEsp());
         register(new ItemEsp());
+        register(new WaypointsModule());
+        register(new DamageNumbers());
+        register(new JumpCircles());
+        register(new Crosshair());
+        register(new Trajectories());
+        register(new FreeLook());
+        register(new Ambience());
+        register(new KillEffects());
         // World
         register(new Nuker());
         register(new Scaffold());
@@ -83,6 +95,8 @@ public final class ModuleManager {
         register(new AutoEat());
         register(new AutoLog());
         register(new MiddleClickFriend());
+        register(new Guardian());
+        register(new AutoReconnect());
         register(new Notifier());
         register(new AntiAfk());
         register(new AutoRespawn());
@@ -198,7 +212,16 @@ public final class ModuleManager {
         return FabricLoader.getInstance().getConfigDir().resolve("emperor.json");
     }
 
-    public static void save() {
+    private static Path profilesDir() {
+        return FabricLoader.getInstance().getConfigDir().resolve("emperor").resolve("profiles");
+    }
+
+    private static Path profile(String name) {
+        return profilesDir().resolve(name.replaceAll("[^A-Za-z0-9_\\-]", "_") + ".json");
+    }
+
+    /** Serialises modules + HUD layout; global data (friends, waypoints) only when {@code global}. */
+    private static JsonObject toJson(boolean global) {
         JsonObject root = new JsonObject();
         for (Module m : MODULES) {
             JsonObject o = new JsonObject();
@@ -209,11 +232,52 @@ public final class ModuleManager {
             o.add("settings", s);
             root.add(m.name, o);
         }
-        JsonArray friends = new JsonArray();
-        for (String f : Friends.all()) friends.add(f);
-        root.add(FRIENDS_KEY, friends);
+        root.add(HUD_KEY, Hud.save());
+        if (global) {
+            JsonArray friends = new JsonArray();
+            for (String f : Friends.all()) friends.add(f);
+            root.add(FRIENDS_KEY, friends);
+            root.add(WAYPOINTS_KEY, Waypoints.save());
+        }
+        return root;
+    }
+
+    private static void fromJson(JsonObject root) {
+        if (root.has(FRIENDS_KEY) && root.get(FRIENDS_KEY).isJsonArray()) {
+            Friends.clear();
+            for (JsonElement e : root.getAsJsonArray(FRIENDS_KEY)) Friends.add(e.getAsString());
+        }
+        if (root.has(WAYPOINTS_KEY) && root.get(WAYPOINTS_KEY).isJsonArray()) {
+            try {
+                Waypoints.load(root.getAsJsonArray(WAYPOINTS_KEY));
+            } catch (Exception e) {
+                LOG.error("Failed to load waypoints", e);
+            }
+        }
+        if (root.has(HUD_KEY) && root.get(HUD_KEY).isJsonObject()) Hud.load(root.getAsJsonObject(HUD_KEY));
+        for (Module m : MODULES) {
+            if (!root.has(m.name) || !root.get(m.name).isJsonObject()) continue;
+            JsonObject o = root.getAsJsonObject(m.name);
+            if (o.has("key")) m.setKey(o.get("key").getAsInt());
+            if (o.has("settings")) {
+                JsonObject s = o.getAsJsonObject("settings");
+                for (Setting<?> set : m.settings) {
+                    JsonElement e = s.get(set.name);
+                    if (e != null) {
+                        try {
+                            set.load(e);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+            if (m.saveEnabled() && o.has("enabled")) m.setEnabled(o.get("enabled").getAsBoolean());
+        }
+    }
+
+    public static void save() {
         try {
-            Files.writeString(file(), GSON.toJson(root));
+            Files.writeString(file(), GSON.toJson(toJson(true)));
         } catch (IOException e) {
             LOG.error("Failed to save config", e);
         }
@@ -223,31 +287,53 @@ public final class ModuleManager {
         Path f = file();
         if (!Files.exists(f)) return;
         try {
-            JsonObject root = JsonParser.parseString(Files.readString(f)).getAsJsonObject();
-            if (root.has(FRIENDS_KEY) && root.get(FRIENDS_KEY).isJsonArray()) {
-                Friends.clear();
-                for (JsonElement e : root.getAsJsonArray(FRIENDS_KEY)) Friends.add(e.getAsString());
-            }
-            for (Module m : MODULES) {
-                if (!root.has(m.name)) continue;
-                JsonObject o = root.getAsJsonObject(m.name);
-                if (o.has("key")) m.setKey(o.get("key").getAsInt());
-                if (o.has("settings")) {
-                    JsonObject s = o.getAsJsonObject("settings");
-                    for (Setting<?> set : m.settings) {
-                        JsonElement e = s.get(set.name);
-                        if (e != null) {
-                            try {
-                                set.load(e);
-                            } catch (Exception ignored) {
-                            }
-                        }
-                    }
-                }
-                if (m.saveEnabled() && o.has("enabled")) m.setEnabled(o.get("enabled").getAsBoolean());
-            }
+            fromJson(JsonParser.parseString(Files.readString(f)).getAsJsonObject());
         } catch (Exception e) {
             LOG.error("Failed to load config", e);
         }
+    }
+
+    public static boolean saveProfile(String name) {
+        try {
+            Files.createDirectories(profilesDir());
+            Files.writeString(profile(name), GSON.toJson(toJson(false)));
+            return true;
+        } catch (IOException e) {
+            LOG.error("Failed to save profile {}", name, e);
+            return false;
+        }
+    }
+
+    public static boolean loadProfile(String name) {
+        Path p = profile(name);
+        if (!Files.exists(p)) return false;
+        try {
+            fromJson(JsonParser.parseString(Files.readString(p)).getAsJsonObject());
+            save();
+            return true;
+        } catch (Exception e) {
+            LOG.error("Failed to load profile {}", name, e);
+            return false;
+        }
+    }
+
+    public static boolean deleteProfile(String name) {
+        try {
+            return Files.deleteIfExists(profile(name));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public static List<String> profiles() {
+        List<String> out = new ArrayList<>();
+        Path dir = profilesDir();
+        if (!Files.isDirectory(dir)) return out;
+        try (var s = Files.list(dir)) {
+            s.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".json"))
+                    .map(n -> n.substring(0, n.length() - 5)).sorted().forEach(out::add);
+        } catch (IOException ignored) {
+        }
+        return out;
     }
 }

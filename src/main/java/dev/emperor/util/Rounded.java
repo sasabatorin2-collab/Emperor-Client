@@ -96,4 +96,14 @@ public final class Rounded {
     public static void circle(DrawContext ctx, int cx, int cy, int radius, int color) {
         fill(ctx, cx - radius, cy - radius, cx + radius, cy + radius, radius, color);
     }
+
+    /** Any-angle 1px line, stepped per pixel (fine for short GUI strokes). */
+    public static void line(DrawContext ctx, float x1, float y1, float x2, float y2, int color) {
+        float dx = x2 - x1, dy = y2 - y1;
+        int steps = (int) Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+        for (int i = 0; i <= steps; i++) {
+            int px = Math.round(x1 + dx * i / steps), py = Math.round(y1 + dy * i / steps);
+            ctx.fill(px, py, px + 1, py + 1, color);
+        }
+    }
 }

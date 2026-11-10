@@ -1,9 +1,12 @@
 package dev.emperor;
 
 import dev.emperor.gui.ClickGuiScreen;
+import dev.emperor.gui.SpotlightScreen;
 import dev.emperor.hud.Hud;
 import dev.emperor.hud.Notifications;
 import dev.emperor.module.ModuleManager;
+import dev.emperor.modules.AutoReconnect;
+import dev.emperor.util.Session;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -16,19 +19,20 @@ import org.lwjgl.glfw.GLFW;
 
 public class EmperorClient implements ClientModInitializer {
     public static final String NAME = "Emperor";
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "3.0.0";
 
     private static KeyBinding guiKey;
+    private static KeyBinding spotlightKey;
 
     @Override
     public void onInitializeClient() {
         ModuleManager.init();
+        AutoReconnect.register();
 
         guiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.emperor.gui",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_RIGHT_SHIFT,
-                "category.emperor"));
+                "key.emperor.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "category.emperor"));
+        spotlightKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.emperor.spotlight", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_GRAVE_ACCENT, "category.emperor"));
 
         ClientTickEvents.START_CLIENT_TICK.register(ModuleManager::preTick);
 
@@ -36,6 +40,10 @@ public class EmperorClient implements ClientModInitializer {
             while (guiKey.wasPressed()) {
                 if (client.currentScreen == null) client.setScreen(new ClickGuiScreen());
             }
+            while (spotlightKey.wasPressed()) {
+                if (client.currentScreen == null) client.setScreen(new SpotlightScreen());
+            }
+            Session.tick(client);
             ModuleManager.tick(client);
         });
 
