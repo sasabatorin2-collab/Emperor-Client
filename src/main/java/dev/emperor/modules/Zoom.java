@@ -6,7 +6,6 @@ import dev.emperor.module.ModuleManager;
 import dev.emperor.setting.BoolSetting;
 import dev.emperor.setting.NumberSetting;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.InputUtil;
 
 /** Smooth zoom; scroll while zoomed to change the level. */
 public class Zoom extends Module {
@@ -41,7 +40,7 @@ public class Zoom extends Module {
     @Override
     public void onTick() {
         // With "Hold key" the module only stays on while its bind is held down.
-        if (hold.get() && getKey() >= 0 && !InputUtil.isKeyPressed(mc.getWindow().getHandle(), getKey())) setEnabled(false);
+        if (hold.get() && getKey() >= 0 && !holdMode && !dev.emperor.util.Keys.isDown(getKey())) setEnabled(false);
     }
 
     private static Zoom inst() {

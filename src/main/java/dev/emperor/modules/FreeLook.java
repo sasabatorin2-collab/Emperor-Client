@@ -6,7 +6,6 @@ import dev.emperor.module.ModuleManager;
 import dev.emperor.setting.BoolSetting;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.Perspective;
-import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.MathHelper;
 
@@ -51,7 +50,7 @@ public class FreeLook extends Module {
 
     @Override
     public void onTick() {
-        if (hold.get() && getKey() >= 0 && !InputUtil.isKeyPressed(mc.getWindow().getHandle(), getKey())) setEnabled(false);
+        if (hold.get() && getKey() >= 0 && !holdMode && !dev.emperor.util.Keys.isDown(getKey())) setEnabled(false);
     }
 
     public static boolean handleLook(Entity entity, double dx, double dy) {

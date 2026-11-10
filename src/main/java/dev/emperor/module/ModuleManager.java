@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.emperor.friend.Friends;
 import dev.emperor.hud.Hud;
+import dev.emperor.macro.Macros;
 import dev.emperor.modules.*;
 import dev.emperor.setting.Setting;
 import dev.emperor.util.Projection;
@@ -32,6 +33,7 @@ public final class ModuleManager {
     private static final String FRIENDS_KEY = "$friends";
     private static final String WAYPOINTS_KEY = "$waypoints";
     private static final String HUD_KEY = "$hud";
+    private static final String MACROS_KEY = "$macros";
     private static final Logger LOG = LoggerFactory.getLogger("Emperor");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final List<Module> MODULES = new ArrayList<>();
@@ -84,12 +86,19 @@ public final class ModuleManager {
         register(new FreeLook());
         register(new Ambience());
         register(new KillEffects());
+        register(new HealthBars());
+        register(new ProjectileTracker());
+        register(new BlockOutline());
+        register(new LightOverlay());
+        register(new Cosmetics());
+        register(new LogoutSpots());
         // World
         register(new Nuker());
         register(new Scaffold());
         register(new FastPlace());
         register(new AutoTool());
         register(new AutoFish());
+        register(new AutoMLG());
         register(new ChestStealer());
         // Misc
         register(new AutoEat());
@@ -97,6 +106,8 @@ public final class ModuleManager {
         register(new MiddleClickFriend());
         register(new Guardian());
         register(new AutoReconnect());
+        register(new ChatPlus());
+        register(new HitSounds());
         register(new Notifier());
         register(new AntiAfk());
         register(new AutoRespawn());
@@ -151,16 +162,34 @@ public final class ModuleManager {
         }
     }
 
+    /** Key / mouse event from GLFW (action: 0 release, 1 press, 2 repeat). Event-driven so short taps are never missed. */
+    public static void onBindEvent(int code, int action) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null || mc.world == null || action == 2) return;
+        boolean press = action == 1;
+        if (mc.currentScreen != null && press) return;
+        for (Module m : MODULES) {
+            if (m.getKey() != code) continue;
+            if (m.holdMode) {
+                if (press || m.keyWasDown) m.setEnabled(press);
+            } else if (press) {
+                m.toggle();
+            }
+            m.keyWasDown = press;
+        }
+        if (press) Macros.onPress(code);
+    }
+
     public static void tick(MinecraftClient mc) {
         if (mc.player == null || mc.world == null) return;
 
-        if (mc.currentScreen == null) {
-            long window = mc.getWindow().getHandle();
+        if (mc.currentScreen != null) {
+            // Release hold-mode modules when a screen opens over the game.
             for (Module m : MODULES) {
-                if (m.getKey() < 0) continue;
-                boolean down = InputUtil.isKeyPressed(window, m.getKey());
-                if (down && !m.keyWasDown) m.toggle();
-                m.keyWasDown = down;
+                if (m.holdMode && m.keyWasDown) {
+                    m.setEnabled(false);
+                    m.keyWasDown = false;
+                }
             }
         }
 
@@ -227,6 +256,9 @@ public final class ModuleManager {
             JsonObject o = new JsonObject();
             o.addProperty("enabled", m.isEnabled());
             o.addProperty("key", m.getKey());
+            o.addProperty("hold", m.holdMode);
+            o.addProperty("hidden", m.hidden);
+            o.addProperty("favorite", m.favorite);
             JsonObject s = new JsonObject();
             for (Setting<?> set : m.settings) s.add(set.name, set.save());
             o.add("settings", s);
@@ -234,6 +266,7 @@ public final class ModuleManager {
         }
         root.add(HUD_KEY, Hud.save());
         if (global) {
+            root.add(MACROS_KEY, Macros.save());
             JsonArray friends = new JsonArray();
             for (String f : Friends.all()) friends.add(f);
             root.add(FRIENDS_KEY, friends);
@@ -255,10 +288,14 @@ public final class ModuleManager {
             }
         }
         if (root.has(HUD_KEY) && root.get(HUD_KEY).isJsonObject()) Hud.load(root.getAsJsonObject(HUD_KEY));
+        if (root.has(MACROS_KEY) && root.get(MACROS_KEY).isJsonArray()) Macros.load(root.getAsJsonArray(MACROS_KEY));
         for (Module m : MODULES) {
             if (!root.has(m.name) || !root.get(m.name).isJsonObject()) continue;
             JsonObject o = root.getAsJsonObject(m.name);
             if (o.has("key")) m.setKey(o.get("key").getAsInt());
+            if (o.has("hold")) m.holdMode = o.get("hold").getAsBoolean();
+            if (o.has("hidden")) m.hidden = o.get("hidden").getAsBoolean();
+            if (o.has("favorite")) m.favorite = o.get("favorite").getAsBoolean();
             if (o.has("settings")) {
                 JsonObject s = o.getAsJsonObject("settings");
                 for (Setting<?> set : m.settings) {

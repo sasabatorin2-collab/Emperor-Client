@@ -3,6 +3,7 @@ package dev.emperor.mixin;
 import dev.emperor.hud.Hud;
 import dev.emperor.modules.Criticals;
 import dev.emperor.modules.Crosshair;
+import dev.emperor.modules.HitSounds;
 import dev.emperor.util.Session;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.entity.Entity;
@@ -22,6 +23,7 @@ public abstract class ClientPlayerInteractionManagerMixin {
         if (target instanceof LivingEntity le) Hud.setTarget(le);
         Session.onAttack(target);
         Crosshair.onHit();
+        HitSounds.onHit();
         Criticals.onAttack(target);
     }
 

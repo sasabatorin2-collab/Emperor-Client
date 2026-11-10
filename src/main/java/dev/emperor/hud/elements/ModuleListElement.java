@@ -31,7 +31,7 @@ public class ModuleListElement extends HudElement {
     private List<Module> shown() {
         List<Module> out = new ArrayList<>();
         for (Module m : ModuleManager.all()) {
-            if (m.category == Category.CLIENT) continue;
+            if (m.category == Category.CLIENT || m.hidden) continue;
             if (m.isEnabled() || slide.getOrDefault(m, 0f) > 0.01f) out.add(m);
         }
         return out;
@@ -55,7 +55,7 @@ public class ModuleListElement extends HudElement {
     public void render(DrawContext ctx, TextRenderer tr, float dt, boolean preview) {
         for (Module m : ModuleManager.all()) {
             if (m.category == Category.CLIENT) continue;
-            float s = Fx.approach(slide.getOrDefault(m, 0f), m.isEnabled() ? 1f : 0f, dt, 12f);
+            float s = Fx.approach(slide.getOrDefault(m, 0f), m.isEnabled() && !m.hidden ? 1f : 0f, dt, 12f);
             slide.put(m, s);
         }
         List<Module> list = shown();

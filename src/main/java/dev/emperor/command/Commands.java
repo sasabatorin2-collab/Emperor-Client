@@ -6,6 +6,8 @@ import dev.emperor.module.Category;
 import dev.emperor.module.Module;
 import dev.emperor.module.ModuleManager;
 import dev.emperor.util.Chat;
+import dev.emperor.util.Keys;
+import dev.emperor.macro.Macros;
 import dev.emperor.util.Session;
 import dev.emperor.waypoint.Waypoints;
 import net.minecraft.client.MinecraftClient;
@@ -40,6 +42,16 @@ public final class Commands {
                 case "waypoint", "wp" -> waypoint(a);
                 case "config", "profile", "cfg" -> config(a);
                 case "stats" -> stats();
+                case "macro", "macros", "m" -> macro(a, message.substring(PREFIX.length()).trim());
+                case "binds" -> {
+                    int n = 0;
+                    for (Module m : ModuleManager.all()) {
+                        if (m.getKey() < 0) continue;
+                        Chat.info("§e" + Keys.name(m.getKey()) + " §8→ §f" + m.name + (m.holdMode ? " §7(hold)" : ""));
+                        n++;
+                    }
+                    if (n == 0) Chat.info("No binds yet.");
+                }
                 case "save" -> {
                     ModuleManager.save();
                     Chat.info("Config saved.");
@@ -60,7 +72,11 @@ public final class Commands {
     /** {usage, description}; also used for Spotlight suggestions. */
     public static final String[][] USAGE = {
             {"toggle <module>", "turn a module on/off"},
-            {"bind <module> <key|none>", "set a module keybind"},
+            {"bind <module> <key|none> [hold]", "set a module keybind (also: mouse4, mmb)"},
+            {"binds", "list all keybinds"},
+            {"macro add <key> <text>", "key sends a message or /command"},
+            {"macro del <key>", "remove a macro"},
+            {"macro list", "list macros"},
             {"friend add|del|list <name>", "manage friends"},
             {"wp add <name> [x y z]", "create a waypoint (default: here)"},
             {"wp del <name>", "delete a waypoint"},
@@ -168,10 +184,38 @@ public final class Commands {
             Chat.info("Unbound §e" + m.name);
             return;
         }
-        InputUtil.Key key = InputUtil.fromTranslationKey("key.keyboard." + k);
-        if (key.getCode() < 0) throw new IllegalArgumentException("unknown key " + a[2]);
-        m.setKey(key.getCode());
-        Chat.info("Bound §e" + m.name + "§f to §e" + key.getLocalizedText().getString().toUpperCase(Locale.ROOT));
+        int code = Keys.parse(a[2]);
+        if (code < 0) throw new IllegalArgumentException("unknown key " + a[2]);
+        m.setKey(code);
+        if (a.length > 3) m.holdMode = a[3].equalsIgnoreCase("hold");
+        Chat.info("Bound §e" + m.name + "§f to §e" + Keys.name(code) + (m.holdMode ? " §7(hold)" : ""));
+        ModuleManager.save();
+    }
+
+    private static void macro(String[] a, String raw) {
+        String sub = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "list";
+        switch (sub) {
+            case "add", "set" -> {
+                if (a.length < 4) throw new IllegalArgumentException("usage: " + PREFIX + "macro add <key> <text or /command>");
+                int code = Keys.parse(a[2]);
+                if (code < 0) throw new IllegalArgumentException("unknown key " + a[2]);
+                // Keep the original spacing of the macro text.
+                int idx = raw.indexOf(a[2], raw.indexOf(a[1]) + a[1].length()) + a[2].length();
+                String text = raw.substring(idx).trim();
+                Macros.set(code, text);
+                Chat.info("Macro §e" + Keys.name(code) + "§f → §7" + text);
+                ModuleManager.save();
+            }
+            case "del", "remove", "rm" -> {
+                if (a.length < 3) throw new IllegalArgumentException("missing key");
+                Chat.info(Macros.remove(Keys.parse(a[2])) ? "Macro removed." : "No macro on " + a[2]);
+                ModuleManager.save();
+            }
+            default -> {
+                if (Macros.all().isEmpty()) Chat.info("No macros yet. §7" + PREFIX + "macro add <key> <text>");
+                for (Macros.Macro m : Macros.all()) Chat.info("§e" + Keys.name(m.key) + " §8→ §f" + m.text);
+            }
+        }
     }
 
     private static void friend(String[] a) {

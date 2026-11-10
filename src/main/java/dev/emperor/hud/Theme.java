@@ -8,7 +8,7 @@ import java.awt.Color;
 /** Two-colour animated gradient themes shared by the ClickGUI, HUD and render modules. */
 public final class Theme {
     public static final String[] NAMES = {
-            "Emperor", "Amethyst", "Crimson", "Ocean", "Aurora", "Sakura", "Mint", "Sunset", "Midnight", "Rainbow"
+            "Emperor", "Amethyst", "Crimson", "Ocean", "Aurora", "Sakura", "Mint", "Sunset", "Midnight", "Rainbow", "Custom"
     };
 
     private Theme() {
@@ -33,6 +33,10 @@ public final class Theme {
             case "Mint" -> new int[]{0xFFC4FFE0, 0xFF1FCF83};
             case "Sunset" -> new int[]{0xFFFFC94C, 0xFFFF4C7A};
             case "Midnight" -> new int[]{0xFF9FB4FF, 0xFF3B2D8F};
+            case "Custom" -> {
+                ClickGuiModule g = cfg();
+                yield g == null ? new int[]{0xFFFFD36E, 0xFFB45CFF} : new int[]{g.customA.get(), g.customB.get()};
+            }
             default -> new int[]{0xFFFFD36E, 0xFFB45CFF}; // Emperor: imperial gold -> royal purple
         };
     }

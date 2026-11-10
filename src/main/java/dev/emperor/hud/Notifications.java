@@ -86,6 +86,16 @@ public final class Notifications {
         int sh = ctx.getScaledWindowHeight();
         long now = System.currentTimeMillis();
 
+        // Stack above any visible HUD widget occupying the bottom-right corner.
+        int base = sh - 8;
+        HudModule hm = ModuleManager.get(HudModule.class);
+        if (hm != null && hm.isEnabled()) {
+            for (HudElement e : Hud.ELEMENTS) {
+                if (!e.visible.get() || !e.hasContent() || e.h <= 1) continue;
+                if (e.x + e.w > sw - W - 10 && e.y > sh / 2) base = Math.min(base, e.y - 6);
+            }
+        }
+
         float slot = 0;
         for (int i = TOASTS.size() - 1; i >= 0; i--) {
             Toast t = TOASTS.get(i);
@@ -94,7 +104,7 @@ public final class Notifications {
             float out = age > t.duration ? Fx.easeOutCubic((age - t.duration) / 260f) : 0f;
             float vis = Math.max(0f, Math.min(1f, in) - out);
 
-            float targetY = sh - 8 - H - slot * (H + 5);
+            float targetY = base - H - slot * (H + 5);
             t.y = t.y < 0 ? targetY : Fx.approach(t.y, targetY, dt, 14f);
             slot += 1f - out;
 

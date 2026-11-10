@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "CameraMixin",
+    "ChatHudMixin",
     "ClientPlayerInteractionManagerMixin",
     "ClientPlayNetworkHandlerMixin",
     "EntityMixin",
@@ -12,6 +13,7 @@
     "GameRendererMixin",
     "InGameHudMixin",
     "InGameOverlayRendererMixin",
+    "KeyboardMixin",
     "MinecraftClientAccessor",
     "MinecraftClientMixin",
     "MouseMixin",

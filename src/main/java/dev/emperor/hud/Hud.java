@@ -23,9 +23,11 @@ public final class Hud {
     public static final StatsElement STATS = new StatsElement();
     public static final KeystrokesElement KEYSTROKES = new KeystrokesElement();
     public static final PotionsElement POTIONS = new PotionsElement();
+    public static final PerformanceElement PERFORMANCE = new PerformanceElement();
+    public static final InventoryElement INVENTORY = new InventoryElement();
 
     public static final List<HudElement> ELEMENTS = List.of(
-            WATERMARK, MODULES, INFO, ARMOR, TARGET, RADAR, COMPASS, STATS, KEYSTROKES, POTIONS);
+            WATERMARK, MODULES, INFO, ARMOR, TARGET, RADAR, COMPASS, STATS, KEYSTROKES, POTIONS, PERFORMANCE, INVENTORY);
 
     private static long lastFrame = System.nanoTime();
 

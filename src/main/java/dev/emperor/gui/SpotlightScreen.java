@@ -163,7 +163,7 @@ public class SpotlightScreen extends Screen {
                 ctx.drawCenteredTextWithShadow(textRenderer, m.isEnabled() ? "ON" : "OFF", px + 15, py + 2,
                         Theme.lerp(0xFF9A9AA8, 0xFF0E0E14, on));
                 if (m.getKey() >= 0) {
-                    String k = keyName(m.getKey());
+                    String k = dev.emperor.util.Keys.name(m.getKey());
                     int kw = textRenderer.getWidth(k) + 6;
                     Rounded.fill(ctx, px - kw - 4, py, px - 4, py + 11, 3, 0x60000000);
                     ctx.drawTextWithShadow(textRenderer, k, px - kw - 1, py + 2, 0xFFB0B0C0);
@@ -179,13 +179,6 @@ public class SpotlightScreen extends Screen {
         ctx.drawCenteredTextWithShadow(textRenderer, foot, width / 2, y + h - 13, 0xFF5E5E70);
     }
 
-    private static String keyName(int key) {
-        try {
-            return InputUtil.fromKeyCode(key, 0).getLocalizedText().getString().toUpperCase(Locale.ROOT);
-        } catch (Exception e) {
-            return "?";
-        }
-    }
 
     private void activate(boolean shift) {
         if (results.isEmpty()) return;

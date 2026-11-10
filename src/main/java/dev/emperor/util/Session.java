@@ -32,6 +32,7 @@ public final class Session {
         distance = 0;
         ATTACKED.clear();
         lastPos = null;
+        TickRate.reset();
     }
 
     public static void onAttack(Entity e) {

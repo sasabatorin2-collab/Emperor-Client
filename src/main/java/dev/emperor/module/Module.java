@@ -19,6 +19,12 @@ public abstract class Module {
     private boolean enabled;
     private int key = -1;
     boolean keyWasDown;
+    /** Hold mode: the module is on only while its bind is held. */
+    public boolean holdMode;
+    /** Hidden from the HUD module list. */
+    public boolean hidden;
+    /** Pinned to the top of its panel in the ClickGUI. */
+    public boolean favorite;
 
     protected Module(String name, String description, Category category) {
         this.name = name;

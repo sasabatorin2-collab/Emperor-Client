@@ -7,6 +7,9 @@ import dev.emperor.module.Module;
 import dev.emperor.module.ModuleManager;
 import dev.emperor.modules.ClickGuiModule;
 import dev.emperor.setting.BoolSetting;
+import dev.emperor.setting.ColorSetting;
+import dev.emperor.hud.Notifications;
+import dev.emperor.util.Keys;
 import dev.emperor.setting.ModeSetting;
 import dev.emperor.setting.NumberSetting;
 import dev.emperor.setting.Setting;
@@ -75,6 +78,9 @@ public class ClickGuiScreen extends Screen {
     private Category draggingPanel;
     private int dragOffX, dragOffY;
     private Module binding;
+    private Module lastBinding;
+    // The key that completes a bind also produces a char event; drop it so it does not land in search.
+    private boolean swallowChar;
     private String search = "";
     private int scrollY = 0;
     private int scrollTarget = 0;
@@ -227,17 +233,26 @@ public class ClickGuiScreen extends Screen {
         for (Module m : ModuleManager.byCategory(c)) {
             if (q.isEmpty() || m.name.toLowerCase(Locale.ROOT).contains(q)) out.add(m);
         }
+        // Favourites float to the top, otherwise registration order is kept (stable sort).
+        out.sort((a, b) -> Boolean.compare(b.favorite, a.favorite));
         return out;
     }
 
-    private static int settingHeight(Setting<?> s) {
+    private static final int DESC_H = 13;
+    /** Description + Bind + Mode + Show-in-list rows shown above every module's own settings. */
+    private static final int META_H = DESC_H + SET_H * 3;
+    private static final int COLOR_OPEN_H = SET_H + 36;
+    private static final Map<ColorSetting, Boolean> COLOR_OPEN = new HashMap<>();
+
+    private int settingHeight(Setting<?> s) {
+        if (s instanceof ColorSetting cs) return (int) (SET_H + (COLOR_OPEN_H - SET_H) * peek(List.of("color", cs)));
         return s instanceof NumberSetting ? SLIDER_H : SET_H;
     }
 
-    private static int settingsHeight(Module m) {
-        int h = 2;
+    private int settingsHeight(Module m) {
+        int h = 2 + META_H;
         for (Setting<?> s : m.settings) h += settingHeight(s);
-        return h + 2;
+        return h + 3;
     }
 
     private int bodyHeight(Category c) {
@@ -328,6 +343,7 @@ public class ClickGuiScreen extends Screen {
         List<DockButton> buttons = List.of(
                 new DockButton("✎", "HUD Editor", (x, y, b) -> client.setScreen(new HudEditorScreen(this))),
                 new DockButton("⌕", "Spotlight", (x, y, b) -> client.setScreen(new SpotlightScreen())),
+                new DockButton("⚙", "Binds", (x, y, b) -> client.setScreen(new KeybindsScreen(this))),
                 new DockButton("◐", "Theme: " + (g == null ? "-" : g.theme.get()), (x, y, b) -> {
                     if (g == null) return;
                     if (b == 1) g.theme.prev();
@@ -478,25 +494,34 @@ public class ClickGuiScreen extends Screen {
 
         if (!Fx.invisible(fade)) {
             int nameCol = Theme.lerp(0xFF8E8EA0, 0xFFFFFFFF, Math.max(t, hv * 0.7f));
-            ctx.drawTextWithShadow(tr, m.name, x + 11 + (int) (2 * t), ry + 5, c(nameCol));
+            int nx = x + 11 + (int) (2 * t);
+            if (m.favorite) {
+                ctx.drawTextWithShadow(tr, "★", nx, ry + 5, c(0xFFFFD36E));
+                nx += tr.getWidth("★ ");
+            }
+            drawName(ctx, tr, m.name, nx, ry + 5, c(nameCol));
 
             int right = x + PANEL_W - 9;
+            float e = peek(expandKey(m));
+            String arrow = e > 0.5f ? "▾" : "▸";
+            ctx.drawTextWithShadow(tr, arrow, right - tr.getWidth(arrow), ry + 5, c(Theme.lerp(0xFF6A6A7C, Theme.primary(), e)));
+            right -= tr.getWidth(arrow) + 4;
             if (binding == m) {
-                String s = (System.currentTimeMillis() / 300) % 2 == 0 ? "press a key" : "press a key_";
-                ctx.drawTextWithShadow(tr, s, right - tr.getWidth("press a key_"), ry + 5, c(Theme.primary()));
-            } else {
-                if (!m.settings.isEmpty()) {
-                    float e = peek(expandKey(m));
-                    String arrow = e > 0.5f ? "▾" : "▸";
-                    ctx.drawTextWithShadow(tr, arrow, right - tr.getWidth(arrow), ry + 5, c(Theme.lerp(0xFF6A6A7C, Theme.primary(), e)));
-                    right -= tr.getWidth(arrow) + 4;
-                }
-                if (m.getKey() >= 0) {
-                    String k = keyName(m.getKey());
-                    int kw = tr.getWidth(k);
-                    Rounded.fill(ctx, right - kw - 6, ry + 3, right, ry + ROW_H - 4, 3, c(0x60000000));
-                    ctx.drawTextWithShadow(tr, k, right - kw - 3, ry + 5, c(0xFFB0B0C0));
-                }
+                String s = "...";
+                int kw = tr.getWidth(s);
+                Rounded.fill(ctx, right - kw - 6, ry + 3, right, ry + ROW_H - 4, 3, c(Theme.alpha(Theme.primary(), 0x90)));
+                ctx.drawTextWithShadow(tr, s, right - kw - 3, ry + 5, c(0xFFFFFFFF));
+            } else if (m.getKey() >= 0) {
+                String k = Keys.name(m.getKey()) + (m.holdMode ? " ⏷" : "");
+                int kw = tr.getWidth(k);
+                Rounded.fill(ctx, right - kw - 6, ry + 3, right, ry + ROW_H - 4, 3, c(0x60000000));
+                ctx.drawTextWithShadow(tr, k, right - kw - 3, ry + 5, c(0xFFB0B0C0));
+                right -= kw + 9;
+            }
+            if (hv > 0.05f && !m.favorite && binding != m) {
+                // hover star to pin the module
+                int sx = right - tr.getWidth("☆");
+                ctx.drawTextWithShadow(tr, "☆", sx, ry + 5, c(Theme.alpha(0xFFFFD36E, (int) (0xB0 * hv))));
             }
         }
 
@@ -504,7 +529,7 @@ public class ClickGuiScreen extends Screen {
             if (b == 0) {
                 m.toggle();
                 sound(m.isEnabled() ? 1.4f : 1.0f);
-            } else if (b == 1 && !m.settings.isEmpty()) {
+            } else if (b == 1) {
                 EXPANDED.put(m, !EXPANDED.getOrDefault(m, false));
                 sound(1.2f);
             } else if (b == 2) {
@@ -512,10 +537,21 @@ public class ClickGuiScreen extends Screen {
                 sound(1.6f);
             }
         }, null, m.description);
+        // star hit-box (added after the row so it wins)
+        if (hover || m.favorite) {
+            int starX = x + PANEL_W - 9 - tr.getWidth("▸") - 4;
+            if (m.getKey() >= 0 && binding != m) starX -= tr.getWidth(Keys.name(m.getKey()) + (m.holdMode ? " ⏷" : "")) + 9;
+            int fx = m.favorite ? x + 9 + (int) (2 * t) : starX - tr.getWidth("☆") - 1;
+            hit(fx, ry + 2, tr.getWidth("☆") + 3, ROW_H - 4, (cx, cy, b) -> {
+                if (b != 0) return;
+                m.favorite = !m.favorite;
+                sound(m.favorite ? 1.8f : 1.0f);
+            }, null, m.favorite ? "Unpin from top" : "Pin to top");
+        }
         ry += ROW_H;
 
         float ex = anim(expandKey(m), EXPANDED.getOrDefault(m, false) ? 1f : 0f, 14f);
-        if (ex > 0.005f && !m.settings.isEmpty()) {
+        if (ex > 0.005f) {
             int full = settingsHeight(m);
             int vis = (int) (full * ex);
             int prevTop = clipTop, prevBottom = clipBottom;
@@ -524,7 +560,10 @@ public class ClickGuiScreen extends Screen {
             ctx.enableScissor(x, ry, x + PANEL_W, ry + vis);
             Rounded.fill(ctx, x + 4, ry, x + PANEL_W - 4, ry + full, r, c(0x48000000));
             ctx.fill(x + 4, ry + 2, x + 5, ry + full - 2, c(Theme.alpha(Theme.primary(), 0x90)));
-            int sy = ry + 2;
+            int sy = drawMeta(ctx, tr, m, x, ry + 2, mx, my);
+            if (!m.settings.isEmpty()) {
+                ctx.fill(x + 10, sy, x + PANEL_W - 10, sy + 1, c(0x18FFFFFF));
+            }
             for (Setting<?> s : m.settings) sy = drawSetting(ctx, tr, s, x, sy, mx, my);
             ctx.disableScissor();
             clipTop = prevTop;
@@ -532,6 +571,109 @@ public class ClickGuiScreen extends Screen {
             ry += vis;
         }
         return ry;
+    }
+
+    /** Name with the current search query highlighted. */
+    private void drawName(DrawContext ctx, TextRenderer tr, String name, int x, int y, int color) {
+        int idx = search.isEmpty() ? -1 : name.toLowerCase(Locale.ROOT).indexOf(search.toLowerCase(Locale.ROOT));
+        if (idx < 0) {
+            ctx.drawTextWithShadow(tr, name, x, y, color);
+            return;
+        }
+        String a = name.substring(0, idx), b = name.substring(idx, idx + search.length()), d = name.substring(idx + search.length());
+        int cx = x;
+        ctx.drawTextWithShadow(tr, a, cx, y, color);
+        cx += tr.getWidth(a);
+        int bw = tr.getWidth(b);
+        Rounded.fill(ctx, cx - 1, y - 1, cx + bw + 1, y + 9, 2, c(Theme.alpha(Theme.primary(), 0x60)));
+        ctx.drawTextWithShadow(tr, b, cx, y, c(0xFFFFFFFF));
+        ctx.drawTextWithShadow(tr, d, cx + bw, y, color);
+    }
+
+    /** Description, Bind, Bind mode and Show-in-list rows. */
+    private int drawMeta(DrawContext ctx, TextRenderer tr, Module m, int x, int y, int mx, int my) {
+        int left = x + 11, right = x + PANEL_W - 10;
+        boolean text = !Fx.invisible(fade);
+        if (text) {
+            String d = m.description;
+            int max = right - left;
+            if (tr.getWidth(d) > max) d = tr.trimToWidth(d, max - tr.getWidth("…")) + "…";
+            ctx.getMatrices().push();
+            ctx.getMatrices().translate(left, y + 3, 0);
+            ctx.drawTextWithShadow(tr, d, 0, 0, c(0xFF6E6E80));
+            ctx.getMatrices().pop();
+        }
+        hit(x, y, PANEL_W, DESC_H, (cx, cy, b) -> {
+        }, null, m.description);
+        y += DESC_H;
+
+        // Bind row: click to listen, Esc cancels, Backspace/Delete clears, mouse buttons work too
+        boolean listening = binding == m;
+        float la = anim(List.of("listen", m), listening ? 1f : 0f, 14f);
+        if (text) {
+            ctx.drawTextWithShadow(tr, "Bind", left, y + 4, c(0xFFC4C4D0));
+            String k = listening ? ((System.currentTimeMillis() / 400) % 2 == 0 ? "Press a key…" : "Press a key") : Keys.name(m.getKey());
+            int kw = tr.getWidth("Press a key…");
+            int bx = right - Math.max(kw, tr.getWidth(k)) - 10;
+            float pulse = listening ? 0.5f + 0.5f * (float) Math.sin(System.currentTimeMillis() / 140.0) : 0f;
+            Rounded.fill(ctx, bx, y + 1, right, y + SET_H - 2, 4, c(Theme.lerp(0xFF23232E, Theme.primary(), la * (0.55f + 0.3f * pulse))));
+            Rounded.outline(ctx, bx, y + 1, right, y + SET_H - 2, 4, c(Theme.alpha(Theme.main(), (int) (0x50 + 0x90 * la))));
+            int col = m.getKey() < 0 && !listening ? 0xFF6A6A7C : 0xFFFFFFFF;
+            ctx.drawCenteredTextWithShadow(tr, k, (bx + right) / 2, y + 4, c(col));
+        }
+        hit(x, y, PANEL_W, SET_H, (cx, cy, b) -> {
+            if (b == 0) {
+                binding = lastBinding == m ? null : m;
+                sound(1.6f);
+            } else if (b == 1) {
+                m.setKey(-1);
+                sound(0.9f);
+            }
+        }, null, "LMB: set key (keyboard or mouse button) · RMB: clear · Esc: cancel");
+        y += SET_H;
+
+        // Toggle / Hold
+        float ht = anim(List.of("hold", m), m.holdMode ? 1f : 0f, 16f);
+        if (text) {
+            ctx.drawTextWithShadow(tr, "Mode", left, y + 4, c(0xFFC4C4D0));
+            int pw = 60, px = right - pw;
+            Rounded.fill(ctx, px, y + 1, right, y + SET_H - 2, 5, c(0xFF23232E));
+            int kx = (int) (px + 1 + (pw / 2 - 1) * ht);
+            Rounded.gradientH(ctx, kx, y + 2, kx + pw / 2 - 1, y + SET_H - 3, 4, c(Theme.primary()), c(Theme.secondary()));
+            pillText(ctx, tr, "Toggle", px + pw / 4, y + 4, c(Theme.lerp(0xFF0E0E14, 0xFF8E8EA0, ht)), ht < 0.5f);
+            pillText(ctx, tr, "Hold", px + pw * 3 / 4, y + 4, c(Theme.lerp(0xFF8E8EA0, 0xFF0E0E14, ht)), ht >= 0.5f);
+        }
+        hit(x, y, PANEL_W, SET_H, (cx, cy, b) -> {
+            m.holdMode = !m.holdMode;
+            if (m.holdMode && m.isEnabled()) m.setEnabled(false);
+            sound(1.3f);
+        }, null, "Toggle: press to switch on/off · Hold: on only while the key is held");
+        y += SET_H;
+
+        // Show in HUD list
+        float vt = anim(List.of("visible", m), m.hidden ? 0f : 1f, 16f);
+        if (text) ctx.drawTextWithShadow(tr, "Show in list", left, y + 4, c(0xFFC4C4D0));
+        toggle(ctx, right, y, vt);
+        hit(x, y, PANEL_W, SET_H, (cx, cy, b) -> {
+            m.hidden = !m.hidden;
+            sound(m.hidden ? 1.1f : 1.5f);
+        }, null, "Show this module in the HUD module list when it is on");
+        return y + SET_H;
+    }
+
+    /** Dark text on a bright pill reads badly with a drop shadow, so the selected label is drawn flat. */
+    static void pillText(DrawContext ctx, TextRenderer tr, String s, int cx, int y, int color, boolean selected) {
+        int x = cx - tr.getWidth(s) / 2;
+        if (selected) ctx.drawText(tr, s, x, y, color, false);
+        else ctx.drawTextWithShadow(tr, s, x, y, color);
+    }
+
+    private void toggle(DrawContext ctx, int right, int y, float t) {
+        int tx = right - 18, ty = y + 3;
+        Rounded.fill(ctx, tx, ty, tx + 18, ty + 9, 4, c(Theme.lerp(0xFF2A2A36, Theme.primary(), t)));
+        if (t > 0.05f) Rounded.shadow(ctx, tx, ty, tx + 18, ty + 9, 4, 2, c(Theme.alpha(Theme.primary(), (int) (0x50 * t))));
+        int kx = (int) (tx + 1 + 9 * t);
+        Rounded.fill(ctx, kx, ty + 1, kx + 7, ty + 8, 3, c(0xFFFFFFFF));
     }
 
     private int drawSetting(DrawContext ctx, TextRenderer tr, Setting<?> s, int x, int y, int mx, int my) {
@@ -592,6 +734,49 @@ public class ClickGuiScreen extends Screen {
             hit(x, y, PANEL_W, SLIDER_H, (cx, cy, b) -> {
                 if (b == 0) drag.on(cx);
             }, drag, null);
+        } else if (s instanceof ColorSetting cs) {
+            float open = anim(List.of("color", cs), COLOR_OPEN.getOrDefault(cs, false) ? 1f : 0f, 14f);
+            if (text) ctx.drawTextWithShadow(tr, cs.name, left, y + 4, c(0xFFC4C4D0));
+            Rounded.fill(ctx, right - 22, y + 2, right, y + SET_H - 3, 4, c(0xFF000000));
+            Rounded.fill(ctx, right - 21, y + 3, right - 1, y + SET_H - 4, 3, c(cs.get()));
+            if (text && tr.getWidth(cs.name) + 70 < right - left) {
+                String hex = String.format("#%06X", cs.get() & 0xFFFFFF);
+                ctx.drawTextWithShadow(tr, hex, right - 26 - tr.getWidth(hex), y + 4, c(0xFF6A6A7C));
+            }
+            hit(x, y, PANEL_W, SET_H, (cx, cy, b) -> {
+                COLOR_OPEN.put(cs, !COLOR_OPEN.getOrDefault(cs, false));
+                sound(1.3f);
+            }, null, "Click to edit colour");
+            if (open > 0.02f) {
+                float[] hsb = cs.hsb();
+                int tw = right - left;
+                int[] rows = {y + SET_H + 2, y + SET_H + 14, y + SET_H + 26};
+                for (int i = 0; i < 3; i++) {
+                    int ry = rows[i];
+                    for (int px = 0; px < tw; px++) {
+                        float f = px / (float) (tw - 1);
+                        int col = switch (i) {
+                            case 0 -> java.awt.Color.HSBtoRGB(f, 1f, 1f);
+                            case 1 -> java.awt.Color.HSBtoRGB(hsb[0], f, Math.max(0.2f, hsb[2]));
+                            default -> java.awt.Color.HSBtoRGB(hsb[0], hsb[1], f);
+                        };
+                        ctx.fill(left + px, ry, left + px + 1, ry + 6, c(col | 0xFF000000));
+                    }
+                    float v = hsb[i];
+                    int kx = left + (int) (v * (tw - 1));
+                    Rounded.fill(ctx, kx - 2, ry - 1, kx + 3, ry + 7, 2, c(0xFFFFFFFF));
+                    final int idx = i;
+                    Drag drag = cx -> {
+                        float f = (float) Math.max(0, Math.min(1, (cx - left) / (double) tw));
+                        float[] h = cs.hsb();
+                        h[idx] = idx == 0 ? Math.min(f, 0.999f) : f;
+                        cs.setHsb(h[0], h[1], h[2]);
+                    };
+                    hit(x, ry - 3, PANEL_W, 12, (cx, cy, b) -> {
+                        if (b == 0) drag.on(cx);
+                    }, drag, null);
+                }
+            }
         }
         return y + settingHeight(s);
     }
@@ -644,19 +829,20 @@ public class ClickGuiScreen extends Screen {
         }
     }
 
-    private static String keyName(int key) {
-        try {
-            return InputUtil.fromKeyCode(key, 0).getLocalizedText().getString().toUpperCase(Locale.ROOT);
-        } catch (Exception e) {
-            return "?";
-        }
-    }
-
     // ------------------------------------------------------------------ input
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (closing) return true;
+        // While listening, middle / side mouse buttons become the bind.
+        if (binding != null && button >= 2) {
+            binding.setKey(Keys.mouse(button));
+            Notifications.push(binding.name, "Bound to " + Keys.name(binding.getKey()), Notifications.Kind.INFO);
+            binding = null;
+            sound(1.8f);
+            return true;
+        }
+        lastBinding = binding;
         binding = null;
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit h = hits.get(i);
@@ -664,9 +850,11 @@ public class ClickGuiScreen extends Screen {
                 h.click().on(mouseX, mouseY, button);
                 ripples.add(new Ripple((int) mouseX, (int) mouseY));
                 if (h.drag() != null && button == 0) activeSlider = h;
+                lastBinding = null;
                 return true;
             }
         }
+        lastBinding = null;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -700,7 +888,10 @@ public class ClickGuiScreen extends Screen {
 
     @Override
     public boolean charTyped(char chr, int modifiers) {
-        if (binding != null) return true;
+        if (binding != null || swallowChar) {
+            swallowChar = false;
+            return true;
+        }
         if (chr >= 32 && chr != 127 && search.length() < 24) {
             search += chr;
             return true;
@@ -710,13 +901,17 @@ public class ClickGuiScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        swallowChar = false;
         if (binding != null) {
             if (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) {
                 binding.setKey(-1);
+                Notifications.push(binding.name, "Keybind cleared", Notifications.Kind.DISABLED);
             } else if (keyCode != GLFW.GLFW_KEY_ESCAPE) {
                 binding.setKey(keyCode);
+                Notifications.push(binding.name, "Bound to " + Keys.name(keyCode), Notifications.Kind.INFO);
             }
             binding = null;
+            swallowChar = true;
             sound(1.8f);
             return true;
         }

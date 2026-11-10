@@ -6,6 +6,7 @@ import dev.emperor.hud.Hud;
 import dev.emperor.hud.Notifications;
 import dev.emperor.module.ModuleManager;
 import dev.emperor.modules.AutoReconnect;
+import dev.emperor.modules.BlockOutline;
 import dev.emperor.util.Session;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -19,7 +20,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class EmperorClient implements ClientModInitializer {
     public static final String NAME = "Emperor";
-    public static final String VERSION = "3.0.0";
+    public static final String VERSION = "4.0.0";
 
     private static KeyBinding guiKey;
     private static KeyBinding spotlightKey;
@@ -53,6 +54,7 @@ public class EmperorClient implements ClientModInitializer {
             Notifications.render(ctx);
         });
         WorldRenderEvents.LAST.register(ModuleManager::render3d);
+        WorldRenderEvents.BEFORE_BLOCK_OUTLINE.register((ctx, hit) -> BlockOutline.vanillaAllowed());
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ModuleManager.save());
     }
 }
