@@ -3,6 +3,8 @@
 Fabric-клиент для Minecraft **1.21.4** (Java 21, Fabric API) в стиле Meteor:
 анимированный ClickGUI, Spotlight-поиск, редактор HUD, 10 HUD-виджетов, команды, профили, вейпоинты и 60+ модулей.
 
+YOU CAN GET IT HERE: https://github.com/sasabatorin2-collab/Emperor-Client/releases
+
 ## Сборка
 
 ```bash
