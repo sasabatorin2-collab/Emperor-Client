@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "nova",
+  "version": "${version}",
+  "name": "Nova Client",
+  "description": "Utility client for Fabric 1.21.4 with ClickGUI, HUD and modules.",
+  "authors": ["You"],
+  "license": "MIT",
+  "environment": "client",
+  "mixins": ["nova.mixins.json"],
+  "entrypoints": {
+    "client": ["dev.nova.NovaClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
