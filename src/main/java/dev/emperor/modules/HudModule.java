@@ -1,0 +1,17 @@
+package dev.emperor.modules;
+
+import dev.emperor.module.Category;
+import dev.emperor.module.Module;
+import dev.emperor.setting.BoolSetting;
+
+public class HudModule extends Module {
+    public final BoolSetting watermark = add(new BoolSetting("Watermark", true));
+    public final BoolSetting fps = add(new BoolSetting("FPS", true));
+    public final BoolSetting coords = add(new BoolSetting("Coordinates", true));
+    public final BoolSetting arrayList = add(new BoolSetting("Module list", true));
+    public final BoolSetting rainbow = add(new BoolSetting("Rainbow", true));
+
+    public HudModule() {
+        super("HUD", "Overlay with client info and active modules.", Category.CLIENT);
+    }
+}

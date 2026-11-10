@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "nova",
+  "id": "emperor",
   "version": "${version}",
-  "name": "Nova Client",
+  "name": "Emperor Client",
   "description": "Utility client for Fabric 1.21.4 with ClickGUI, HUD and modules.",
   "authors": ["You"],
   "license": "MIT",
   "environment": "client",
-  "mixins": ["nova.mixins.json"],
+  "mixins": ["emperor.mixins.json"],
   "entrypoints": {
-    "client": ["dev.nova.NovaClient"]
+    "client": ["dev.emperor.EmperorClient"]
   },
   "depends": {
     "fabricloader": ">=0.16.9",

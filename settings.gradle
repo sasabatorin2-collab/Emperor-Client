@@ -5,4 +5,4 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-rootProject.name = 'nova-client'
+rootProject.name = 'emperor-client'
