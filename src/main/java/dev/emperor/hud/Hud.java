@@ -11,7 +11,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.PlayerSkinDrawer;
-import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
@@ -65,7 +64,7 @@ public final class Hud {
 
         if (h.watermark.get()) watermark(ctx, tr, mc);
         if (h.arrayList.get()) arrayList(ctx, tr, h, dt);
-        if (h.info.get()) info(ctx, tr, mc);
+        if (h.info.get()) info(ctx, tr, mc, h.watermark.get() ? 28 : 6);
         if (h.armor.get()) armor(ctx, tr, mc);
         if (h.targetHud.get()) targetHud(ctx, tr, mc, dt);
     }
@@ -148,7 +147,7 @@ public final class Hud {
         }
     }
 
-    private static void info(DrawContext ctx, TextRenderer tr, MinecraftClient mc) {
+    private static void info(DrawContext ctx, TextRenderer tr, MinecraftClient mc, int top) {
         var p = mc.player;
         boolean nether = mc.world != null && mc.world.getRegistryKey() == World.NETHER;
         double f = nether ? 8.0 : 1.0 / 8.0;
@@ -167,8 +166,8 @@ public final class Hud {
         lines.add(new String[]{"Speed", String.format(Locale.ROOT, "%.2f b/s", bps)});
         lines.add(new String[]{"Facing", d.asString().substring(0, 1).toUpperCase(Locale.ROOT) + d.asString().substring(1) + " (" + axis + ")"});
 
-        int sh = ctx.getScaledWindowHeight();
-        int y = sh - 6 - lines.size() * 10 - (mc.currentScreen instanceof ChatScreen ? 14 : 0);
+        // Top-left under the watermark: the bottom-left corner is covered by chat.
+        int y = top + 2;
         int i = 0;
         for (String[] l : lines) {
             int lw = tr.getWidth(l[0] + " ");

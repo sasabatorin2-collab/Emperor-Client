@@ -13,7 +13,7 @@ public class ClickGuiModule extends Module {
     public final NumberSetting gradientSpeed = add(new NumberSetting("Gradient speed", 1.0, 0.0, 3.0, 0.1));
     public final NumberSetting rounding = add(new NumberSetting("Rounding", 6, 0, 10, 1));
     public final NumberSetting opacity = add(new NumberSetting("Opacity", 0.90, 0.40, 1.00, 0.05));
-    public final BoolSetting blur = add(new BoolSetting("Background blur", true));
+    public final BoolSetting blur = add(new BoolSetting("Blur", true));
     public final BoolSetting particles = add(new BoolSetting("Particles", true));
     public final BoolSetting sounds = add(new BoolSetting("Click sounds", true));
 

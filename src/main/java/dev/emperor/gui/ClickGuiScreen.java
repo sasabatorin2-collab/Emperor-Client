@@ -32,7 +32,8 @@ import java.util.Random;
 
 /** Animated, blurred, gradient ClickGUI with draggable panels, search and smooth settings. */
 public class ClickGuiScreen extends Screen {
-    private static final int PANEL_W = 128;
+    // Shrinks on narrow screens so all six panels fit side by side.
+    private static int PANEL_W = 128;
     private static final int GAP = 10;
     private static final int HEADER_H = 22;
     private static final int ROW_H = 17;
@@ -66,6 +67,7 @@ public class ClickGuiScreen extends Screen {
     private static final Map<Module, Boolean> EXPANDED = new HashMap<>();
     private static final Map<Object, Float> ANIM = new HashMap<>();
     private static boolean laidOut;
+    private static int laidOutWidth;
     private static float[][] particles;
 
     private final List<Hit> hits = new ArrayList<>();
@@ -92,7 +94,8 @@ public class ClickGuiScreen extends Screen {
     @Override
     protected void init() {
         Category[] cats = Category.values();
-        if (!laidOut || PANELS.size() != cats.length) {
+        if (!laidOut || PANELS.size() != cats.length || laidOutWidth != width) {
+            PANEL_W = Math.max(100, Math.min(128, (width - 16 - (cats.length - 1) * GAP) / cats.length));
             int total = cats.length * PANEL_W + (cats.length - 1) * GAP;
             int startX = Math.max(8, (width - total) / 2);
             for (int i = 0; i < cats.length; i++) {
@@ -101,6 +104,7 @@ public class ClickGuiScreen extends Screen {
                 p.y = TOP;
             }
             laidOut = true;
+            laidOutWidth = width;
         }
         if (particles == null) {
             Random r = new Random();
