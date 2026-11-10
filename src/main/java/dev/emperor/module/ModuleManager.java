@@ -2,15 +2,19 @@ package dev.emperor.module;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.emperor.friend.Friends;
 import dev.emperor.modules.*;
 import dev.emperor.setting.Setting;
+import dev.emperor.util.Projection;
 import dev.emperor.util.RenderUtil;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.util.InputUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,8 +24,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class ModuleManager {
+    private static final String FRIENDS_KEY = "$friends";
     private static final Logger LOG = LoggerFactory.getLogger("Emperor");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final List<Module> MODULES = new ArrayList<>();
@@ -33,11 +39,20 @@ public final class ModuleManager {
         MODULES.clear();
         // Combat
         register(new KillAura());
+        register(new TriggerBot());
+        register(new AimAssist());
+        register(new Criticals());
+        register(new Velocity());
+        register(new AutoArmor());
         register(new AutoTotem());
         // Movement
         register(new Sprint());
         register(new Speed());
         register(new Flight());
+        register(new ElytraFly());
+        register(new AirJump());
+        register(new Parkour());
+        register(new SafeWalk());
         register(new Spider());
         register(new NoFall());
         register(new Step());
@@ -45,10 +60,14 @@ public final class ModuleManager {
         register(new AutoWalk());
         // Render
         register(new Esp());
+        register(new Nametags());
         register(new ChestEsp());
         register(new BaseFinder());
         register(new OreEsp());
         register(new Tracers());
+        register(new Breadcrumbs());
+        register(new Zoom());
+        register(new NoRender());
         register(new Fullbright());
         register(new Freecam());
         register(new HoleEsp());
@@ -56,11 +75,14 @@ public final class ModuleManager {
         // World
         register(new Nuker());
         register(new Scaffold());
+        register(new FastPlace());
         register(new AutoTool());
+        register(new AutoFish());
         register(new ChestStealer());
         // Misc
         register(new AutoEat());
         register(new AutoLog());
+        register(new MiddleClickFriend());
         register(new Notifier());
         register(new AntiAfk());
         register(new AutoRespawn());
@@ -85,6 +107,15 @@ public final class ModuleManager {
         List<Module> out = new ArrayList<>();
         for (Module m : MODULES) if (m.category == c) out.add(m);
         return out;
+    }
+
+    /** Case-insensitive lookup that ignores spaces, e.g. "killaura" or "Kill Aura". */
+    public static Module byName(String name) {
+        String q = name.replace(" ", "").toLowerCase(Locale.ROOT);
+        for (Module m : MODULES) {
+            if (m.name.replace(" ", "").toLowerCase(Locale.ROOT).equals(q)) return m;
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -134,6 +165,7 @@ public final class ModuleManager {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.player == null || mc.world == null || ctx.matrixStack() == null) return;
 
+        Projection.capture(ctx);
         RenderUtil.begin(ctx.matrixStack(), ctx.camera().getPos());
         float delta = mc.getRenderTickCounter().getTickDelta(true);
         for (Module m : MODULES) {
@@ -146,6 +178,20 @@ public final class ModuleManager {
             }
         }
         RenderUtil.flush();
+    }
+
+    public static void render2d(DrawContext ctx, float delta) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null || mc.world == null || mc.options.hudHidden) return;
+        for (Module m : MODULES) {
+            if (!m.isEnabled()) continue;
+            try {
+                m.onRender2d(ctx, delta);
+            } catch (Exception e) {
+                LOG.error("Module {} crashed while rendering 2D, disabling", m.name, e);
+                m.setEnabled(false);
+            }
+        }
     }
 
     private static Path file() {
@@ -163,6 +209,9 @@ public final class ModuleManager {
             o.add("settings", s);
             root.add(m.name, o);
         }
+        JsonArray friends = new JsonArray();
+        for (String f : Friends.all()) friends.add(f);
+        root.add(FRIENDS_KEY, friends);
         try {
             Files.writeString(file(), GSON.toJson(root));
         } catch (IOException e) {
@@ -175,6 +224,10 @@ public final class ModuleManager {
         if (!Files.exists(f)) return;
         try {
             JsonObject root = JsonParser.parseString(Files.readString(f)).getAsJsonObject();
+            if (root.has(FRIENDS_KEY) && root.get(FRIENDS_KEY).isJsonArray()) {
+                Friends.clear();
+                for (JsonElement e : root.getAsJsonArray(FRIENDS_KEY)) Friends.add(e.getAsString());
+            }
             for (Module m : MODULES) {
                 if (!root.has(m.name)) continue;
                 JsonObject o = root.getAsJsonObject(m.name);

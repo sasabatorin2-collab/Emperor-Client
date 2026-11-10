@@ -27,7 +27,7 @@ public class Tracers extends Module {
         for (Entity e : mc.world.getEntities()) {
             if (e == mc.player || !(e instanceof LivingEntity)) continue;
             int col;
-            if (e instanceof PlayerEntity && players.get()) col = 0xFF55FFFF;
+            if (e instanceof PlayerEntity && players.get()) col = dev.emperor.friend.Friends.is(e) ? dev.emperor.hud.Theme.primary() : 0xFF55FFFF;
             else if (e instanceof HostileEntity && hostile.get()) col = 0xFFFF5555;
             else if (e instanceof AnimalEntity && passive.get()) col = 0xFF55FF55;
             else continue;

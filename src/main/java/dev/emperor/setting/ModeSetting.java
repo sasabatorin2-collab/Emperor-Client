@@ -19,6 +19,11 @@ public class ModeSetting extends Setting<String> {
         value = modes.get((i + 1) % modes.size());
     }
 
+    public void prev() {
+        int i = modes.indexOf(value);
+        value = modes.get((i - 1 + modes.size()) % modes.size());
+    }
+
     public boolean is(String mode) {
         return value.equalsIgnoreCase(mode);
     }

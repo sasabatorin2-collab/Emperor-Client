@@ -32,6 +32,7 @@ public class Esp extends Module {
     }
 
     private static int colorOf(Entity e) {
+        if (dev.emperor.friend.Friends.is(e)) return dev.emperor.hud.Theme.primary();
         if (e instanceof PlayerEntity) return 0xFF55FFFF;
         if (e instanceof HostileEntity) return 0xFFFF5555;
         return 0xFF55FF55;

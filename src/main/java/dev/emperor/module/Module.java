@@ -1,7 +1,9 @@
 package dev.emperor.module;
 
+import dev.emperor.hud.Notifications;
 import dev.emperor.setting.Setting;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +35,10 @@ public abstract class Module {
         return enabled;
     }
 
+    /** User-initiated toggle (keybind, GUI, command): also shows a notification. */
     public void toggle() {
         setEnabled(!enabled);
+        Notifications.moduleToggled(this);
     }
 
     public void setEnabled(boolean value) {
@@ -77,5 +81,14 @@ public abstract class Module {
 
     /** Called every frame while enabled; draw through-walls geometry with RenderUtil. */
     public void onRender3d(float delta) {
+    }
+
+    /** Called every frame while enabled, in GUI space; use Projection to place things on entities. */
+    public void onRender2d(DrawContext ctx, float delta) {
+    }
+
+    /** Whether toggling this module pops a notification. */
+    public boolean showNotifications() {
+        return true;
     }
 }
